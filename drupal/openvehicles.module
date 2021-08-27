@@ -789,9 +789,16 @@ function openvehicles_download($form, &$form_state, $user, $vehicleid) {
   $record_types = array(
     'S' => "soc,units,linevoltage,chargecurrent,chargestate,chargemode,idealrange,estimatedrange,chargelimit,chargeduration,chargeb4,chargekwh,chargesubstate,chargestateN,chargemodeN,chargetimer,chargestarttime,chargetimerstale,cac100,charge_etr_full,charge_etr_limit,charge_limit_range,charge_limit_soc,cooldown_active,cooldown_tbattery,cooldown_timelimit,charge_estimate,charge_etr_range,charge_etr_soc,idealrange_max,chargetype,chargepower,battvoltage,soh,chargepowerinput,chargerefficiency",
     'D' => "doors1,doors2,lockunlock,tpem,tmotor,tbattery,trip,odometer,speed,parktimer,ambient,doors3,staletemps,staleambient,vehicle12v,doors4,vehicle12v_ref,doors5,tcharger,vehicle12v_current,cabin_tem",
-    'L' => "latitude,longitude,direction,altitude,gpslock,stalegps,speed,tripmeter,drivemode,power,energyused,energyrecd,invpower,invefficiency",
+    'L' => "latitude,longitude,direction,altitude,gpslock,stalegps,speed,tripmeter,drivemode,power,energyused,energyrecd,invpower,invefficiency,gpsmode,satcount,gpshdop,gpsspeed",
     'W' => "fr_pressure,fr_temp,rr_pressure,rr_temp,fl_pressure,fl_temp,rl_pressure,rl_temp,staletpms",
     'F' => "ovms_version,car_vin,net_sq,can_write,car_type,gsmcops");
+
+  $descriptive_type_names = array(
+    'S' => "state_of_charge",
+    'D' => "environment",
+    'L' => "location",
+    'W' => "tire_pressures",
+    'F' => "firmware_version");
 
   $archive_uri = 'public://' . $vehicleid . "_" . REQUEST_TIME . '.zip';
   $zip = new ZipArchive();
@@ -814,7 +821,7 @@ function openvehicles_download($form, &$form_state, $user, $vehicleid) {
       $csv_out .= $message->h_timestamp . "," . $message->h_data . "\n";
     }
 
-    $zip->addFromString($r_type . ".csv", $csv_out);
+    $zip->addFromString($descriptive_type_names[$r_type] . ".csv", $csv_out);
   }
 
   $zip_res = $zip->close();

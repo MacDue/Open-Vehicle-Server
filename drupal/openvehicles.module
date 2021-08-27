@@ -84,6 +84,17 @@ function openvehicles_menu()
     'type' => MENU_CALLBACK,
     );
 
+  $items['user/%user/vehicles/download'] = array(
+    'title' => 'Download Vehicle Data',
+    'description' => 'Download the vehicle data',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('openvehicles_download', 1, 4),
+    'access callback' => 'openvehicles_access',
+    'access arguments' => array(1, 4),
+    //'type' => MENU_LOCAL_TASK,
+    'type' => MENU_CALLBACK,
+    );
+
   return $items;
   }
 
@@ -251,7 +262,7 @@ function openvehicles_password_form($form, &$form_state, $user, $vehicleid)
       '#required' => TRUE,
       '#input' => TRUE,
       '#disabled' => TRUE,
-      '#size' => 32, 
+      '#size' => 32,
       '#maxlength' => 32,
       '#type' => 'textfield',
       );
@@ -280,7 +291,7 @@ function openvehicles_password_do($form, &$form_state)
   global $user;
 
   $vehicleid = $form_state['values']['vehicleid'];
-  $pass   = $form_state['values']['password_confirm'];  
+  $pass   = $form_state['values']['password_confirm'];
 
   $num_updated = db_update('ovms_cars');
   $num_updated->fields(array(
@@ -472,7 +483,6 @@ function openvehicles_provision_form($form, &$form_state, $user, $vehicleid)
     $form['ap_accessgroup']['ap_telephonenumber'] = array(
       '#title' => t('OVMS Vehicle Telephone Number'),
       '#description' => t('The telephone number (in +xxxxx form, including country code) of the vehicle'),
-      '#default_value' => $vehicle->telephone,
       '#required' => TRUE,
       '#input' => TRUE,
       '#size' => 48,
@@ -773,6 +783,48 @@ function openvehicles_remove_do($form, &$form_state)
   $form_state['redirect'] = 'user/' . $user->uid . '/vehicles';
   }
 
+function openvehicles_download($form, &$form_state, $user, $vehicleid) {
+  global $user;
+
+  $record_types = array(
+    'S' => "soc,units,linevoltage,chargecurrent,chargestate,chargemode,idealrange,estimatedrange,chargelimit,chargeduration,chargeb4,chargekwh,chargesubstate,chargestateN,chargemodeN,chargetimer,chargestarttime,chargetimerstale,cac100,charge_etr_full,charge_etr_limit,charge_limit_range,charge_limit_soc,cooldown_active,cooldown_tbattery,cooldown_timelimit,charge_estimate,charge_etr_range,charge_etr_soc,idealrange_max,chargetype,chargepower,battvoltage,soh,chargepowerinput,chargerefficiency",
+    'D' => "doors1,doors2,lockunlock,tpem,tmotor,tbattery,trip,odometer,speed,parktimer,ambient,doors3,staletemps,staleambient,vehicle12v,doors4,vehicle12v_ref,doors5,tcharger,vehicle12v_current,cabin_tem",
+    'L' => "latitude,longitude,direction,altitude,gpslock,stalegps,speed,tripmeter,drivemode,power,energyused,energyrecd,invpower,invefficiency",
+    'W' => "fr_pressure,fr_temp,rr_pressure,rr_temp,fl_pressure,fl_temp,rl_pressure,rl_temp,staletpms",
+    'F' => "ovms_version,car_vin,net_sq,can_write,car_type,gsmcops");
+
+  $archive_uri = 'public://' . $vehicleid . "_" . REQUEST_TIME . '.zip';
+  $zip = new ZipArchive();
+
+  if ($zip->open(drupal_realpath($archive_uri), ZipArchive::CREATE) !== TRUE) {
+    drupal_set_message(t('Error creating Zip archive!'), 'error');
+    return;
+  }
+
+  foreach ($record_types as $r_type => $csv_header) {
+    $query = db_select('ovms_historicalmessages', 'o')
+      ->fields('o', array('h_timestamp', 'h_data'))
+      ->condition('vehicleid', $vehicleid, '=')
+      ->condition('owner', $user->uid, '=')
+      ->condition('h_recordtype', $r_type, '=');
+
+    $result = $query->execute();
+    $csv_out = "rec_type," . $csv_header . "\n";
+    foreach ($result as $message) {
+      $csv_out .= $message->h_timestamp . "," . $message->h_data . "\n";
+    }
+
+    $zip->addFromString($r_type . ".csv", $csv_out);
+  }
+
+  $zip_res = $zip->close();
+  if($zip_res === TRUE) {
+    drupal_set_message(t('Zip archive successfully created: !link', array('!link' => l(file_create_url($archive_uri), file_create_url($archive_uri)))));
+  } else {
+    drupal_set_message(t('Error creating Zip archive: ' . $zip_res), 'error');
+  }
+}
+
 /**
  * Access callback for user/%user/vehicles*.
  */
@@ -801,7 +853,8 @@ function openvehicles_user($user)
     array('data' => t('Nickname'), 'field' => 'o.vehiclename', 'width' => 150),
     array('data' => t('Server'), 'field' => 'o.v_server'),
     array('data' => t('Telephone'), 'field' => 'o.telephone'),
-    array('data' => t('Action'), 'width' => 100)
+    array('data' => t('Action'), 'width' => 100),
+    array('data' => t('Download Data'), 'width' => 100)
     );
 
   $rows = array();
@@ -845,8 +898,8 @@ function openvehicles_user($user)
       array('data' => l($src1, 'user/' . $user->uid . '/vehicles/edit/' . $vehicle->vehicleid, array('html'=>TRUE)) . '&nbsp;|&nbsp;' .
                       l($src2, 'user/' . $user->uid . '/vehicles/password/' . $vehicle->vehicleid, array('html'=>TRUE)) . '&nbsp;|&nbsp;' .
                       l($src3, 'user/' . $user->uid . '/vehicles/delete/' . $vehicle->vehicleid, array('html'=>TRUE)) . '&nbsp;|&nbsp;' .
-                      l($src4, 'user/' . $user->uid . '/vehicles/provision/' . $vehicle->vehicleid, array('html'=>TRUE)))
-      );
+                      l($src4, 'user/' . $user->uid . '/vehicles/provision/' . $vehicle->vehicleid, array('html'=>TRUE))),
+      array('data' => l("Download", 'user/' . $user->uid . '/vehicles/download/' . $vehicle->vehicleid, array('html'=>TRUE))));
     }
 
   $build['submit'] = array(
@@ -872,9 +925,9 @@ function openvehicles_user($user)
  * SMS Integration
  ******************************************************************************/
 
-/**   
+/**
  * Implements hook_sms_incoming().
- *  
+ *
  * @param $op
  *   SMS incoming operation string (pre process, process, post process)
  * @param $number
@@ -883,11 +936,11 @@ function openvehicles_user($user)
  *   SMS message body string
  * @param $options
  *   Additional options array including receiver MSISDN
- */  
+ */
 function openvehicles_sms_incoming($op, $number, $message, $options) {
   if ($op == 'pre process') {
     // Let's see if we can find corresponding numbers in the ovms_cars database, and route via eMail as appropriate
- 
+
    watchdog('openvehicles', 'Incoming SMS from '.$number, NULL, WATCHDOG_NOTICE, '');
 
    $query = db_select('ovms_cars', 'c');

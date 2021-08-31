@@ -809,7 +809,7 @@ function openvehicles_download($form, &$form_state, $user, $vehicleid) {
   }
 
   foreach ($record_types as $r_type => $csv_header) {
-    $query = db_select('ovms_historicalmessages', 'o')
+    $query = db_select('ovms_historicalmessages_backup', 'o')
       ->fields('o', array('h_timestamp', 'h_data'))
       ->condition('vehicleid', $vehicleid, '=')
       ->condition('owner', $user->uid, '=')
